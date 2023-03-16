@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub port: u16,
     pub s3: S3Config,
     pub rds: RDSConfig,
 }

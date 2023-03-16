@@ -9,9 +9,13 @@ edition = "2021"
 aws-config = "0.54.1"
 aws-sdk-s3 = "0.24.0"
 bytes = "1.4.0"
+env_logger = "0.10.0"
 image = "0.24.5"
+json = "0.12.4"
+log = "0.4.17"
 mysql = "23.0.1"
 rust-s3 = "0.32.3"
 serde = { version = "1.0.156", features = ["derive"] }
 serde_json = "1.0.94"
 tokio = { version = "1.26.0", features = ["full"] }
+warp = "0.3.3"

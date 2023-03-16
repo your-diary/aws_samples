@@ -3,34 +3,21 @@
 use std::error::Error;
 
 use mysql::{params, prelude::Queryable, OptsBuilder, Pool, PooledConn};
+#[cfg(test)]
 use s3::creds::time::PrimitiveDateTime;
 
+use super::color::Color;
 use super::config::RDSConfig;
 
 /*-------------------------------------*/
 
-#[derive(Debug)]
-struct Color {
-    r: usize,
-    g: usize,
-    b: usize,
-}
-
-impl Color {
-    fn new(r: usize, g: usize, b: usize) -> Self {
-        Self { r, g, b }
-    }
-}
-
-/*-------------------------------------*/
-
-struct MySQL {
+pub struct MySQL {
     connection: PooledConn,
     table_name: String,
 }
 
 impl MySQL {
-    fn new(config: &RDSConfig) -> Result<Self, Box<dyn Error>> {
+    pub fn new(config: &RDSConfig) -> Result<Self, Box<dyn Error>> {
         let opts = OptsBuilder::new()
             .user(Some(config.user.to_string()))
             .pass(Some(config.password.to_string()))
@@ -65,7 +52,7 @@ impl MySQL {
         }
     }
 
-    fn insert(&mut self, c: &Color) -> Result<(), Box<dyn Error>> {
+    pub fn insert(&mut self, c: &Color) -> Result<(), Box<dyn Error>> {
         let res = self.connection.exec_drop(
             format!(
                 r"INSERT INTO {} (r, g, b) VALUES (:r, :g, :b)",
@@ -84,10 +71,11 @@ impl MySQL {
         }
     }
 
+    #[cfg(test)]
     fn select(&mut self) -> Result<Vec<Color>, Box<dyn Error>> {
         let res = self.connection.query_map(
             format!("SELECT * from {}", &self.table_name),
-            |(r, g, b, _): (usize, usize, usize, PrimitiveDateTime)| Color::new(r, g, b),
+            |(r, g, b, _): (u8, u8, u8, PrimitiveDateTime)| Color::new(r, g, b),
         );
         if let Err(e) = res {
             Err(e.to_string().into())

@@ -1,16 +1,18 @@
 use bytes::Bytes;
 use image::{codecs::png::PngEncoder, ColorType, ImageEncoder, Rgb, RgbImage};
 
+use super::color::Color;
+
 pub struct Image;
 
 impl Image {
-    pub fn create_image(width: u32, height: u32) -> Bytes {
+    pub fn create_image(width: u32, height: u32, color: &Color) -> Bytes {
         let mut img = RgbImage::new(width, height);
         for x in 0..width {
             for y in 0..height {
-                let r = ((x + y) % 4).try_into().unwrap();
-                let g = 255 - r;
-                let b = 127 - r;
+                let r = color.r;
+                let g = color.g;
+                let b = color.b;
                 img.put_pixel(x, y, Rgb([r, g, b]));
             }
         }
