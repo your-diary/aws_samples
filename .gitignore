@@ -13,3 +13,4 @@ node_modules/
 old/
 used/
 sandbox/
+*.json

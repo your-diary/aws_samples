@@ -3,7 +3,7 @@ use std::error::Error;
 use ec2::image::Image;
 use ec2::s3::S3;
 
-const BUCKET_NAME: &str = "bucket-test-001-a";
+use ec2::config::Config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -13,7 +13,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let filename = S3::create_filename();
 
-    let s3 = S3::new(BUCKET_NAME.to_string()).await?;
+    let config = Config::new("./config.json");
+
+    let s3 = S3::new(&config.s3).await?;
     let res = s3.upload(&filename, image).await;
     println!("{:?}", res);
 

@@ -3,6 +3,8 @@ use std::{error::Error, time::SystemTime};
 use bytes::Bytes;
 use s3::creds::Credentials;
 
+use super::config::S3Config;
+
 pub struct S3 {
     bucket_name: String,
     client: aws_sdk_s3::Client,
@@ -13,18 +15,18 @@ pub struct S3 {
 }
 
 impl S3 {
-    pub async fn new(bucket_name: String) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(s3_config: &S3Config) -> Result<Self, Box<dyn Error>> {
         let config = aws_config::load_from_env().await;
         let client = aws_sdk_s3::Client::new(&config);
 
         let bucket = s3::Bucket::new(
-            &bucket_name,
+            &s3_config.bucket_name,
             s3::Region::ApNortheast1,
             Credentials::default()?,
         )?;
 
         Ok(Self {
-            bucket_name,
+            bucket_name: s3_config.bucket_name.clone(),
             client,
             bucket,
         })
