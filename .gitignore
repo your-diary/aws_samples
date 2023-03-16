@@ -1,0 +1,15 @@
+tags
+.*
+!.gitignore
+!.dockerignore
+*.swp
+.DS_Store
+*.out
+*.class
+target/
+dist-newstyle/
+__pycache__/
+node_modules/
+old/
+used/
+sandbox/
