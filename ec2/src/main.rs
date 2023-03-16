@@ -11,8 +11,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let height = 100;
     let image = Image::create_image(width, height);
 
-    let s3 = S3::new(BUCKET_NAME.to_string()).await;
-    let res = s3.upload(&S3::create_filename(), image).await;
+    let filename = S3::create_filename();
+
+    let s3 = S3::new(BUCKET_NAME.to_string()).await?;
+    let res = s3.upload(&filename, image).await;
     println!("{:?}", res);
-    res
+
+    let url = s3.get_presigned_url(&filename, 30);
+    println!("{:?}", url);
+
+    Ok(())
 }

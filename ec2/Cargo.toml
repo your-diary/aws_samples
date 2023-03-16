@@ -10,4 +10,5 @@ aws-config = "0.54.1"
 aws-sdk-s3 = "0.24.0"
 bytes = "1.4.0"
 image = "0.24.5"
+rust-s3 = "0.32.3"
 tokio = { version = "1.26.0", features = ["full"] }
