@@ -170,7 +170,7 @@ pub async fn listen(config: &Arc<Config>) -> Result<(), Box<dyn Error>> {
     });
 
     warp::serve(filter.with(logger))
-        .run(([127, 0, 0, 1], config.port))
+        .run(([0, 0, 0, 0], config.port))
         .await;
 
     Ok(())
