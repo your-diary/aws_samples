@@ -1,5 +1,6 @@
 pub mod color;
 pub mod config;
+pub mod dynamodb;
 pub mod image;
 pub mod mysql;
 pub mod s3;
@@ -18,6 +19,7 @@ use warp::{
 
 use crate::color::Color;
 use crate::config::Config;
+use crate::dynamodb::DynamoDB;
 use crate::image::Image;
 use crate::mysql::MySQL;
 use crate::s3::S3;
@@ -72,6 +74,7 @@ async fn handler_logic(
     config: Arc<Config>,
     s3: Arc<Mutex<S3>>,
     rds: Arc<Mutex<MySQL>>,
+    dynamodb: Arc<Mutex<DynamoDB>>,
 ) -> Result<String, Box<dyn Error>> {
     let image = Image::create_image(config.img_width, config.img_height, color);
 
@@ -83,6 +86,8 @@ async fn handler_logic(
 
     rds.lock().await.insert(color)?;
 
+    dynamodb.lock().await.insert(color).await?;
+
     Ok(url)
 }
 
@@ -90,6 +95,7 @@ async fn handler(
     config: Arc<Config>,
     s3: Arc<Mutex<S3>>,
     rds: Arc<Mutex<MySQL>>,
+    dynamodb: Arc<Mutex<DynamoDB>>,
     json_string: &str,
 ) -> http::Result<http::Response<String>> {
     let req = Request::new(json_string);
@@ -103,7 +109,7 @@ async fn handler(
     }
 
     let req = req.unwrap();
-    let url = handler_logic(&Color::new(req.r, req.g, req.b), config, s3, rds).await;
+    let url = handler_logic(&Color::new(req.r, req.g, req.b), config, s3, rds, dynamodb).await;
     if let Err(e) = url {
         info!("aws operation failed: {}", e);
         return http::Response::builder()
@@ -123,6 +129,7 @@ async fn handler(
 pub async fn listen(config: &Arc<Config>) -> Result<(), Box<dyn Error>> {
     let s3 = Arc::new(Mutex::new(S3::new(&config.s3).await?));
     let rds = Arc::new(Mutex::new(MySQL::new(&config.rds)?));
+    let dynamodb = Arc::new(Mutex::new(DynamoDB::new(&config.dynamodb).await?));
 
     let filter = warp::path!()
         .and(header::exact_ignore_case(
@@ -134,14 +141,16 @@ pub async fn listen(config: &Arc<Config>) -> Result<(), Box<dyn Error>> {
         .and_then({
             let s3 = s3.clone();
             let rds = rds.clone();
+            let dynamodb = dynamodb.clone();
             let config = config.clone();
             move |b: bytes::Bytes| {
                 let s3 = s3.clone();
                 let rds = rds.clone();
+                let dynamodb = dynamodb.clone();
                 let config = config.clone();
                 async move {
                     let json_string = String::from_utf8(b.into_iter().collect()).unwrap();
-                    handler(config, s3, rds, &json_string)
+                    handler(config, s3, rds, dynamodb, &json_string)
                         .await
                         .map_err(|_| warp::reject::reject())
                 }
@@ -174,18 +183,27 @@ mod handler_tests {
 
     use super::*;
 
-    async fn f() -> Result<(Arc<Config>, Arc<Mutex<S3>>, Arc<Mutex<MySQL>>), Box<dyn Error>> {
+    async fn f() -> Result<
+        (
+            Arc<Config>,
+            Arc<Mutex<S3>>,
+            Arc<Mutex<MySQL>>,
+            Arc<Mutex<DynamoDB>>,
+        ),
+        Box<dyn Error>,
+    > {
         let config = Arc::new(Config::new("./config.json"));
         let s3 = Arc::new(Mutex::new(S3::new(&config.s3).await?));
         let rds = Arc::new(Mutex::new(MySQL::new(&config.rds)?));
-        Ok((config, s3, rds))
+        let dynamodb = Arc::new(Mutex::new(DynamoDB::new(&config.dynamodb).await?));
+        Ok((config, s3, rds, dynamodb))
     }
 
     #[tokio::test]
     async fn test01() -> Result<(), Box<dyn Error>> {
-        let (config, s3, rds) = f().await?;
+        let (config, s3, rds, dynamodb) = f().await?;
 
-        let res = handler(config, s3, rds, "").await;
+        let res = handler(config, s3, rds, dynamodb, "").await;
         println!("{:?}", res);
         assert!(res.is_ok());
 
@@ -201,16 +219,24 @@ mod handler_tests {
 
     #[tokio::test]
     async fn test02() -> Result<(), Box<dyn Error>> {
-        let (config, s3, rds) = f().await?;
+        let (config, s3, rds, dynamodb) = f().await?;
 
         let color = Color::new(100, 50, 25);
 
         let num_rds_row = rds.clone().lock().await.select_by_color(&color)?.len();
+        let num_dynamodb_entry = dynamodb
+            .clone()
+            .lock()
+            .await
+            .select_by_color(&color)
+            .await?
+            .len();
 
         let res = handler(
             config,
             s3,
             rds.clone(),
+            dynamodb.clone(),
             &format!(
                 r#"{{"r": {}, "g": {}, "b": {}}}"#,
                 color.r, color.g, color.b
@@ -229,6 +255,16 @@ mod handler_tests {
         assert_eq!(
             num_rds_row + 1,
             rds.lock().await.select_by_color(&color)?.len()
+        );
+        assert_eq!(
+            num_dynamodb_entry + 1,
+            dynamodb
+                .clone()
+                .lock()
+                .await
+                .select_by_color(&color)
+                .await?
+                .len(),
         );
 
         Ok(())

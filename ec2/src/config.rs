@@ -7,6 +7,7 @@ pub struct Config {
     pub img_height: u32,
     pub s3: S3Config,
     pub rds: RDSConfig,
+    pub dynamodb: DynamoDBConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -22,6 +23,11 @@ pub struct RDSConfig {
     pub user: String,
     pub password: String,
     pub database_name: String,
+    pub table_name: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DynamoDBConfig {
     pub table_name: String,
 }
 
