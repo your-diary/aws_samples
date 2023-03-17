@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub port: u16,
+    pub img_width: u32,
+    pub img_height: u32,
     pub s3: S3Config,
     pub rds: RDSConfig,
 }
@@ -10,6 +12,7 @@ pub struct Config {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct S3Config {
     pub bucket_name: String,
+    pub expiration_sec: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

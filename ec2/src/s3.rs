@@ -1,4 +1,4 @@
-use std::{error::Error, time::SystemTime};
+use std::error::Error;
 
 use bytes::Bytes;
 use s3::creds::Credentials;
@@ -30,16 +30,6 @@ impl S3 {
             client,
             bucket,
         })
-    }
-
-    pub fn create_filename() -> String {
-        format!(
-            "{}.png",
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        )
     }
 
     pub async fn upload(&self, filename: &str, image: Bytes) -> Result<(), Box<dyn Error>> {

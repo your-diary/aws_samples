@@ -4,7 +4,7 @@ pub mod image;
 pub mod mysql;
 pub mod s3;
 
-use std::{error::Error, sync::Arc};
+use std::{error::Error, sync::Arc, time::SystemTime};
 
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -57,38 +57,42 @@ impl Response {
 
 /*-------------------------------------*/
 
-async fn f(
+fn create_filename() -> String {
+    format!(
+        "{}.png",
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    )
+}
+
+async fn handler_logic(
     color: &Color,
     config: Arc<Config>,
     s3: Arc<Mutex<S3>>,
     rds: Arc<Mutex<MySQL>>,
 ) -> Result<String, Box<dyn Error>> {
-    //TODO
-    //1. `f`という名前を変える
-    //2. `width`などをconfigに外だし
-    //3. `rds`を使用
-    //4. テストを書く(`f`ではなく`handler`のテストで良い気もする)
+    let image = Image::create_image(config.img_width, config.img_height, color);
 
-    let width = 200;
-    let height = 100;
-    let image = Image::create_image(width, height, color);
-
-    let filename = S3::create_filename();
+    let filename = create_filename();
 
     let s3 = s3.lock().await;
     s3.upload(&filename, image).await?;
-    let url = s3.get_presigned_url(&filename, 30)?;
+    let url = s3.get_presigned_url(&filename, config.s3.expiration_sec)?;
+
+    rds.lock().await.insert(color)?;
 
     Ok(url)
 }
 
 async fn handler(
     config: Arc<Config>,
-    json_string: String,
     s3: Arc<Mutex<S3>>,
     rds: Arc<Mutex<MySQL>>,
+    json_string: &str,
 ) -> http::Result<http::Response<String>> {
-    let req = Request::new(&json_string);
+    let req = Request::new(json_string);
 
     if let Err(e) = req {
         info!("failed to parse json: {}", e);
@@ -99,7 +103,7 @@ async fn handler(
     }
 
     let req = req.unwrap();
-    let url = f(&Color::new(req.r, req.g, req.b), config, s3, rds).await;
+    let url = handler_logic(&Color::new(req.r, req.g, req.b), config, s3, rds).await;
     if let Err(e) = url {
         info!("aws operation failed: {}", e);
         return http::Response::builder()
@@ -136,8 +140,8 @@ pub async fn listen(config: &Arc<Config>) -> Result<(), Box<dyn Error>> {
                 let rds = rds.clone();
                 let config = config.clone();
                 async move {
-                    let s = String::from_utf8(b.into_iter().collect()).unwrap();
-                    handler(config, s, s3, rds)
+                    let json_string = String::from_utf8(b.into_iter().collect()).unwrap();
+                    handler(config, s3, rds, &json_string)
                         .await
                         .map_err(|_| warp::reject::reject())
                 }
@@ -161,6 +165,74 @@ pub async fn listen(config: &Arc<Config>) -> Result<(), Box<dyn Error>> {
         .await;
 
     Ok(())
+}
+
+/*-------------------------------------*/
+
+#[cfg(test)]
+mod handler_tests {
+
+    use super::*;
+
+    async fn f() -> Result<(Arc<Config>, Arc<Mutex<S3>>, Arc<Mutex<MySQL>>), Box<dyn Error>> {
+        let config = Arc::new(Config::new("./config.json"));
+        let s3 = Arc::new(Mutex::new(S3::new(&config.s3).await?));
+        let rds = Arc::new(Mutex::new(MySQL::new(&config.rds)?));
+        Ok((config, s3, rds))
+    }
+
+    #[tokio::test]
+    async fn test01() -> Result<(), Box<dyn Error>> {
+        let (config, s3, rds) = f().await?;
+
+        let res = handler(config, s3, rds, "").await;
+        println!("{:?}", res);
+        assert!(res.is_ok());
+
+        let res = res.unwrap();
+        assert_eq!(StatusCode::BAD_REQUEST, res.status());
+        assert_eq!(
+            "{\n  \"status\": \"error\",\n  \"url\": null\n}",
+            res.body()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test02() -> Result<(), Box<dyn Error>> {
+        let (config, s3, rds) = f().await?;
+
+        let color = Color::new(100, 50, 25);
+
+        let num_rds_row = rds.clone().lock().await.select_by_color(&color)?.len();
+
+        let res = handler(
+            config,
+            s3,
+            rds.clone(),
+            &format!(
+                r#"{{"r": {}, "g": {}, "b": {}}}"#,
+                color.r, color.g, color.b
+            ),
+        )
+        .await;
+        println!("{:?}", res);
+        assert!(res.is_ok());
+
+        let res = res.unwrap();
+        assert_eq!(StatusCode::OK, res.status());
+        assert!(res
+            .body()
+            .starts_with("{\n  \"status\": \"success\",\n  \"url\": \"https://"));
+
+        assert_eq!(
+            num_rds_row + 1,
+            rds.lock().await.select_by_color(&color)?.len()
+        );
+
+        Ok(())
+    }
 }
 
 /*-------------------------------------*/

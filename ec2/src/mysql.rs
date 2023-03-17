@@ -83,6 +83,23 @@ impl MySQL {
             Ok(res.unwrap())
         }
     }
+
+    #[cfg(test)]
+    pub fn select_by_color(&mut self, color: &Color) -> Result<Vec<Color>, Box<dyn Error>> {
+        let res = self.connection.exec_map(
+            format!(
+                "SELECT * from {} where r = :r and g = :g and b = :b",
+                &self.table_name
+            ),
+            params! {"r" => color.r, "g" => color.g, "b" => color.b},
+            |(r, g, b, _): (u8, u8, u8, PrimitiveDateTime)| Color::new(r, g, b),
+        );
+        if let Err(e) = res {
+            Err(e.to_string().into())
+        } else {
+            Ok(res.unwrap())
+        }
+    }
 }
 
 /*-------------------------------------*/
@@ -105,9 +122,14 @@ mod tests {
             g: 50,
             b: 25,
         };
+
+        let num_row = db.select_by_color(&color)?.len();
+
         let res = db.insert(&color);
         println!("{:?}", res);
         assert!(res.is_ok());
+
+        assert_eq!(num_row + 1, db.select_by_color(&color)?.len());
 
         let res = db.select();
         println!("{:?}", res);
