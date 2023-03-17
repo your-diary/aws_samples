@@ -61,7 +61,7 @@ It works locally, or you can deploy it to EC2.
 
     2. Edit inbound rules to allow accesses to the port you want to listen (in addition to SSH).
 
-5. Deploy and build the project.
+5. Deploy and build the project. (**Warning:** If you use a free tier instance, DO skip to the step 6. Executing `cargo build` inside such an instance eats too much power to completely break the instance. After that, you cannot connect to the instance via SSH or even via browser. Rebooting the instance doesn't fix the problem: you have no chance but to create a brand new instance. This behavior was observed both for Ubuntu and Amazon Linux 2.)
 
     1. Connect to the instance via SSH.
         ```bash
@@ -95,22 +95,85 @@ It works locally, or you can deploy it to EC2.
         $ cargo build --release
         ```
 
-    7. Run.
+6. Deploy and build the project, using cross-compilation. (If you execute the step 5, skip this step.)
 
-        TODO
+    1. Cross-compile the project.
+        ```bash
+        $ rustup target add x86_64-unknown-linux-gnu
+        $ cargo build --release --target x86_64-unknown-linux-gnu
+        ```
 
-6. Call the API.
+    2. Write a config file (see below for the details).
+        ```bash
+        $ vi config.json
+        ```
+    
+    3. Send the config file and the built binary to the instance.
+        ```bash
+        $ ssh aws 'mkdir ec2'
+        $ rsync -auv ec2 config.json aws:./ec2/
+        ```
 
-    TODO
+7. Access [*EC2 console*](https://ap-northeast-1.console.aws.amazon.com/ec2/home?region=ap-northeast-1#Home).
+
+    1. Choose the instance.
+
+    2. Select `Actions` > `Security` > `Modify IAM role` to attach a role to the instance to make AWS services accessible inside the instance.
+
+8. Send the credential files to the instance. (**Warning:** Normally this is not needed to use AWS SDK, but in this project we use the third-party `rust-s3` crate and it didn't seem to support reading the credentials via IAM role.)
+    ```bash
+    $ rsync -auv ~/.aws aws:./
+    ```
+
+9. Check if RDS (MySQL) is accessible inside the instance.
+
+    1. Connect to the instance via SSH.
+        ```bash
+        $ ssh aws
+        ```
+
+    2. Install `mysql` command.
+        ```bash
+        $ sudo yum localinstall -y https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm
+        $ sudo yum install -y mysql-community-client
+        ```
+
+    3. Try to connect to RDS (MySQL).
+        ```bash
+        #You can NOT use a space instead of `=`.
+        $ mysql -h <host> -P 3306 --user=<user> --password=<password>
+        ```
+    
+    4. If connection failed, access [*RDS console*](https://ap-northeast-1.console.aws.amazon.com/rds/home?region=ap-northeast-1) and make sure the security group of the instance (e.g. `sg-...`) is listed in the inbound rules.
+
+10. Run the server.
+
+    1. Connect to the instance.
+        ```bash
+        $ ssh aws
+        ```
+    
+    2. Run the server.
+        ```bash
+        $ cd ec2/
+        $ screen -d -m ./ec2
+        $ screen -ls
+        ```
+
+11. Call the API.
 
     ```bash
     $ curl \
+        -H 'Content-Type: application/json' \
         -d '{"r": 100, "g": 100, "b": 200}' \
         <URL>
     ```
 
     ```json
-    {"status":"success","url":"https://..."}
+    {
+        "status": "success",
+        "url": "https://..."
+    }
     ```
 
     ```bash
