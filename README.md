@@ -8,20 +8,149 @@ Sample Rust projects to access AWS via SDK.
 
 - [`cargo-lambda`](https://github.com/awslabs/aws-lambda-rust-runtime)
 
-# 3. `./todo`
+# 3. `./ec2` project
 
 ## 3.1 About
 
+This project creates an HTTP server which does the following for each request:
+
+1. Receive a JSON of the form `{"r": 255, "g": 255, "b": 0}`.
+
+2. Create a PNG image whose every pixel is filled with the given color.
+
+3. Upload it to S3.
+
+4. Log the request with its timestamp to RDS (MySQL) and DynamoDB.
+
+5. Create and return a pre-signed URL (i.e. a public URL with expiration date) to access the object uploaded in S3.
+
+It works locally, or you can deploy it to EC2.
+
 ## 3.2 Architecture
 
-```
-API Gateway ---> EC2 ---> RDS
-                     ---> DynamoDB
-                  ↓
-                  S3
+![](./readme_assets/001.png)
+
+<!-- https://docs.google.com/presentation/d/1ITQbn7CoCnWI3O8fwQH6-TurLOHx4iAe2oX_AM6DeRE/edit#slide=id.g21f1d234fe4_0_23 -->
+
+## 3.3 Usage
+
+1. Access [*S3 console*](https://s3.console.aws.amazon.com/s3/buckets?region=ap-northeast-1) to create a bucket called `bucket-test-002-a` with the default settings.
+
+2. Access [*RDS console*](https://ap-northeast-1.console.aws.amazon.com/rds/home?region=ap-northeast-1).
+
+    1. Create a MySQL instance called `test-rds-001`. Make sure `Publicly accessible` is turned on (to test it locally). 
+
+    2. Edit inbound rules to allow accesses to `3306` port.
+
+    3. Connect to it via command-line to create a database called `test`.
+
+        ```bash
+        #You can NOT use a space instead of `=`.
+        $ mysql -h <host> -P 3306 --user=<user> --password=<password>
+        ```
+
+        ```
+        create database test;
+        ```
+
+3. Access [*DynamoDB console*](https://ap-northeast-1.console.aws.amazon.com/dynamodbv2/home?region=ap-northeast-1#service) to create a table called `test_dynamodb_001`, whose primary key has the name `timestamp` of the type `String`.
+
+4. Access [*EC2 console*](https://ap-northeast-1.console.aws.amazon.com/ec2/home?region=ap-northeast-1#Home).
+
+    1. Create an instance whose OS is Ubuntu.
+
+    2. Edit inbound rules to allow accesses to the port you want to listen (in addition to SSH).
+
+5. Deploy and build the project.
+
+    1. Connect to the instance via SSH.
+        ```bash
+        $ ssh aws
+        ```
+
+    2. Install Rust by following [the official instructions](https://www.rust-lang.org/tools/install):
+        ```bash
+        $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+        ```
+
+    3. Install dependencies.
+        ```bash
+        $ sudo apt update
+        $ sudo apt install build-essential libssl-dev pkg-config
+        ```
+
+    4. Clone this repository.
+        ```bash
+        $ git clone 'https://github.com/your-diary/aws_rust_samples'
+        ```
+    
+    5. Edit the configuration file (see below for the details).
+        ```bash
+        $ cd aws_rust_samples/ec2
+        $ vi config.json
+        ```
+    
+    6. Build.
+        ```bash
+        $ cargo build --release
+        ```
+
+    7. Run.
+
+        TODO
+
+6. Call the API.
+
+    TODO
+
+    ```bash
+    $ curl \
+        -d '{"r": 100, "g": 100, "b": 200}' \
+        <URL>
+    ```
+
+    ```json
+    {"status":"success","url":"https://..."}
+    ```
+
+    ```bash
+    $ curl <returned URL> | imgcat
+    ```
+
+## 3.4 Configurations
+
+Configurations are read from `config.json`.
+
+Example:
+
+```json
+{
+    "port": 30021,
+    "img_width": 300,
+    "img_height": 200,
+    "s3": {
+        "bucket_name": "bucket-test-002-a",
+        "expiration_sec": 30
+    },
+    "rds": {
+        "host": "test-rds-001.xyz.ap-northeast-1.rds.amazonaws.com",
+        "port": 3306,
+        "user": "admin",
+        "password": "abcde",
+        "database_name": "test",
+        "table_name": "colors"
+    },
+    "dynamodb": {
+        "table_name": "test_dynamodb_001"
+    }
+}
 ```
 
-# 4. `./lambda/`
+## 3.5 References
+
+- [*`aws-sdk-rust/examples/` - GitHub*](https://github.com/awslabs/aws-sdk-rust/tree/main/examples)
+
+# 4. `./lambda/` project
 
 ## 4.1 About
 
@@ -29,9 +158,7 @@ This project creates a REST API which receives a JSON of the form `{"content": <
 
 ## 4.2 Architecture
 
-```
-user -> API Gateway -> Lambda (Rust) -> S3
-```
+![](./readme_assets/002.png)
 
 ## 4.3 Usage
 
