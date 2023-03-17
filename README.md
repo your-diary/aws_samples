@@ -57,7 +57,7 @@ It works locally, or you can deploy it to EC2.
 
 4. Access [*EC2 console*](https://ap-northeast-1.console.aws.amazon.com/ec2/home?region=ap-northeast-1#Home).
 
-    1. Create an instance whose OS is Ubuntu.
+    1. Create an instance whose OS is Amazon Linux 2.
 
     2. Edit inbound rules to allow accesses to the port you want to listen (in addition to SSH).
 
@@ -75,8 +75,8 @@ It works locally, or you can deploy it to EC2.
 
     3. Install dependencies.
         ```bash
-        $ sudo apt update
-        $ sudo apt install build-essential libssl-dev pkg-config
+        $ sudo yum update
+        $ sudo yum install git gcc openssl-devel
         ```
 
     4. Clone this repository.
